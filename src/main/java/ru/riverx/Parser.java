@@ -44,10 +44,17 @@ public class Parser {
             if (segments.length == 0) continue;
             code.add("// " + line);
             switch (getType(segments[0].toLowerCase())) {
-                case PUSH: push(segments[1].toLowerCase(), segments[2].toLowerCase()); break;
-                case POP: pop(segments[1].toLowerCase(), segments[2].toLowerCase()); break;
-                case ADD: add(); break;
-                case SUB: sub(); break;
+                case PUSH:  push(segments[1].toLowerCase(), segments[2].toLowerCase()); break;
+                case POP:   pop(segments[1].toLowerCase(), segments[2].toLowerCase()); break;
+                case ADD:   add(); break;
+                case SUB:   sub(); break;
+                case NEG:   neg(); break;
+                case EQ:    eq(); break;
+                case GT:    gt(); break;
+                case LT:    lt(); break;
+                case AND:   and(); break;
+                case OR:    or(); break;
+                case NOT:   not(); break;
                 default:
                 case INVALID: break;
             }
@@ -78,44 +85,14 @@ public class Parser {
     }
 
     private void push(String segment, String i) {
-        if (segment.equals("constant")) {
-            code.add("@"+i);
-            code.add("D=A");
-            code.add("@SP");
-            code.add("AM=M+1");
-            code.add("A=A-1");
-            code.add("M=D");
-            return;
-        }
-        if (segment.equals("static")) {
-            code.add("@"+filename+"."+i);
-            code.add("D=M");
-            code.add("@SP");
-            code.add("AM=M+1");
-            code.add("A=A-1");
-            code.add("M=D");
-            return;
-        }
-        if (segment.equals("temp")) {
-            code.add("@"+(5+Integer.parseInt(i)));
-            code.add("D=M");
-            code.add("@SP");
-            code.add("AM=M+1");
-            code.add("A=A-1");
-            code.add("M=D");
-        }
-        if (segment.equals("local")) {
-            code.add("@LCL");
-        }
-        if (segment.equals("argument")) {
-            code.add("@ARG");
-        }
-        if (segment.equals("this") || segment.equals("pointer") && i.equals("0")) {
-            code.add("@THIS");
-        }
-        if (segment.equals("that") || segment.equals("pointer") && i.equals("1")) {
-            code.add("@THAT");
-        }
+        if (segment.equals("constant")) { pushConst(i); return; }
+        if (segment.equals("static"))   { pushStatic(i); return; }
+        if (segment.equals("temp"))     { pushTemp(i); return; }
+        if (segment.equals("pointer"))  { pushPointer(i); return; }
+        if (segment.equals("local"))    { code.add("@LCL"); }
+        if (segment.equals("argument")) { code.add("@ARG"); }
+        if (segment.equals("this"))     { code.add("@THIS"); }
+        if (segment.equals("that"))     { code.add("@THAT"); }
         code.add("D=M");
         code.add("@"+i);
         code.add("A=D+A");
@@ -126,35 +103,51 @@ public class Parser {
         code.add("M=D");
     }
 
+    private void pushConst(String i) {
+        code.add("@"+i);
+        code.add("D=A");
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=D");
+    }
+
+    private void pushStatic(String i) {
+        code.add("@"+filename+"."+i);
+        code.add("D=M");
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=D");
+    }
+
+    private void pushTemp(String i) {
+        code.add("@"+(5+Integer.parseInt(i)));
+        code.add("D=M");
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=D");
+    }
+
+    private void pushPointer(String i) {
+        if (i.equals("0")) code.add("@THIS");
+        if (i.equals("1")) code.add("@THAT");
+        code.add("D=M");
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=D");
+    }
+
     private void pop(String segment, String i) {
-        if (segment.equals("static")) {
-            code.add("@SP");
-            code.add("AM=M-1");
-            code.add("D=M");
-            code.add("@"+filename+"."+i);
-            code.add("M=D");
-            return;
-        }
-        if (segment.equals("temp")) {
-            code.add("@SP");
-            code.add("AM=M-1");
-            code.add("D=M");
-            code.add("@"+(5+Integer.parseInt(i)));
-            code.add("M=D");
-            return;
-        }
-        if (segment.equals("local")) {
-            code.add("@LCL");
-        }
-        if (segment.equals("argument")) {
-            code.add("@ARG");
-        }
-        if (segment.equals("this") || segment.equals("pointer") && i.equals("0")) {
-            code.add("@THIS");
-        }
-        if (segment.equals("that") || segment.equals("pointer") && i.equals("1")) {
-            code.add("@THAT");
-        }
+        if (segment.equals("static"))   { popStatic(i); return; }
+        if (segment.equals("temp"))     { popTemp(i); return; }
+        if (segment.equals("pointer"))  { popPointer(i); return; }
+        if (segment.equals("local"))    { code.add("@LCL"); }
+        if (segment.equals("argument")) { code.add("@ARG"); }
+        if (segment.equals("this"))     { code.add("@THIS"); }
+        if (segment.equals("that"))     { code.add("@THAT"); }
         code.add("D=M");
         code.add("@"+i);
         code.add("D=D+A");
@@ -165,6 +158,31 @@ public class Parser {
         code.add("D=M");
         code.add("@R13");
         code.add("A=M");
+        code.add("M=D");
+    }
+
+    private void popStatic(String i) {
+        code.add("@SP");
+        code.add("AM=M-1");
+        code.add("D=M");
+        code.add("@"+filename+"."+i);
+        code.add("M=D");
+    }
+
+    private void popTemp(String i) {
+        code.add("@SP");
+        code.add("AM=M-1");
+        code.add("D=M");
+        code.add("@"+(5+Integer.parseInt(i)));
+        code.add("M=D");
+    }
+
+    private void popPointer(String i) {
+        code.add("@SP");
+        code.add("AM=M-1");
+        code.add("D=M");
+        if (i.equals("0")) code.add("@THIS");
+        if (i.equals("1")) code.add("@THAT");
         code.add("M=D");
     }
 
@@ -190,33 +208,65 @@ public class Parser {
         code.add("M=-M");
     }
 
+    private void logic() {
+        code.add("@SP");
+        code.add("AM=M-1");
+        code.add("D=M");        // y
+        code.add("A=A-1");
+        code.add("D=M-D");      // D - value (x-y), A - address.
+        code.add("@IF"+count);
+    }
+
+    private void logicEnd() {
+        code.add("@SP");
+        code.add("A=M-1");
+        code.add("M=0");        // false.
+        code.add("@IFEND"+count);
+        code.add("0;JMP");
+        code.add("(IF"+count+")");
+        code.add("@SP");
+        code.add("A=M-1");
+        code.add("M=-1");       // true.
+        code.add("(IFEND"+count+")");
+    }
+
     private void eq() {
+        logic();
+        code.add("D;JEQ");
+        logicEnd();
+    }
+
+    private void gt() {
+        logic();
+        code.add("D;JGT");
+        logicEnd();
+    }
+
+    private void lt() {
+        logic();
+        code.add("D;JLT");
+        logicEnd();
+    }
+
+    private void and() {
         code.add("@SP");
         code.add("AM=M-1");
         code.add("D=M");
         code.add("A=A-1");
-        code.add("");
-    }
-
-    private void gt() {
-
-    }
-
-    private void lt() {
-        code.add("@SP");
-        code.add("AM=M-1");
-        code.add("D=M");
-    }
-
-    private void and() {
-
+        code.add("M=M&D");
     }
 
     private void or() {
-
+        code.add("@SP");
+        code.add("AM=M-1");
+        code.add("D=M");
+        code.add("A=A-1");
+        code.add("M=M|D");
     }
 
     private void not() {
-
+        code.add("@SP");
+        code.add("A=M-1");
+        code.add("M=!M");
     }
 }
