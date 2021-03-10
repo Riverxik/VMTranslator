@@ -25,6 +25,9 @@ public class Parser {
         AND,
         OR,
         NOT,
+        LABEL,
+        GOTO_LABEL,
+        IF_GOTO_LABEL,
         INVALID
     }
 
@@ -55,6 +58,9 @@ public class Parser {
                 case AND:   and(); break;
                 case OR:    or(); break;
                 case NOT:   not(); break;
+                case LABEL: label(segments[1].toLowerCase());
+                case GOTO_LABEL: gotoLabel(segments[1].toLowerCase());
+                case IF_GOTO_LABEL: ifGotoLabel(segments[1].toLowerCase());
                 default:
                 case INVALID: break;
             }
@@ -70,17 +76,20 @@ public class Parser {
     }
 
     private Type getType(String cmd) {
-        if (cmd.equals("push")) return Type.PUSH;
-        if (cmd.equals("pop")) return Type.POP;
-        if (cmd.equals("add")) return Type.ADD;
-        if (cmd.equals("sub")) return Type.SUB;
-        if (cmd.equals("neg")) return Type.NEG;
-        if (cmd.equals("eq")) return Type.EQ;
-        if (cmd.equals("gt")) return Type.GT;
-        if (cmd.equals("lt")) return Type.LT;
-        if (cmd.equals("and")) return Type.AND;
-        if (cmd.equals("or")) return Type.OR;
-        if (cmd.equals("not")) return Type.NOT;
+        if (cmd.equals("push"))     return Type.PUSH;
+        if (cmd.equals("pop"))      return Type.POP;
+        if (cmd.equals("add"))      return Type.ADD;
+        if (cmd.equals("sub"))      return Type.SUB;
+        if (cmd.equals("neg"))      return Type.NEG;
+        if (cmd.equals("eq"))       return Type.EQ;
+        if (cmd.equals("gt"))       return Type.GT;
+        if (cmd.equals("lt"))       return Type.LT;
+        if (cmd.equals("and"))      return Type.AND;
+        if (cmd.equals("or"))       return Type.OR;
+        if (cmd.equals("not"))      return Type.NOT;
+        if (cmd.equals("label"))    return Type.LABEL;
+        if (cmd.equals("goto"))     return Type.GOTO_LABEL;
+        if (cmd.equals("if-goto"))  return Type.IF_GOTO_LABEL;
         return Type.INVALID;
     }
 
