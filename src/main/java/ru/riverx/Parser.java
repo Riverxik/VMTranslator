@@ -2,6 +2,7 @@ package ru.riverx;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Created by RiVeRx on 09.03.2021.
@@ -28,15 +29,20 @@ public class Parser {
         LABEL,
         GOTO_LABEL,
         IF_GOTO_LABEL,
+        CALL,
+        FUNCTION,
+        RETURN,
         INVALID
     }
 
-    public Parser(List<String> lines, String filename) {
+    public Parser(List<String> lines, String filename, boolean init) {
         this.lines = lines;
         this.code = new ArrayList<>();
         this.filename = filename;
         this.count = 0;
         this.size = lines.size();
+        if (init) writeInit();
+        parse();
     }
 
     public void parse() {
@@ -58,9 +64,12 @@ public class Parser {
                 case AND:   and(); break;
                 case OR:    or(); break;
                 case NOT:   not(); break;
-                case LABEL: label(segments[1].toLowerCase());
-                case GOTO_LABEL: gotoLabel(segments[1].toLowerCase());
-                case IF_GOTO_LABEL: ifGotoLabel(segments[1].toLowerCase());
+                case LABEL: label(segments[1].toLowerCase()); break;
+                case GOTO_LABEL: gotoLabel(segments[1].toLowerCase()); break;
+                case IF_GOTO_LABEL: ifGotoLabel(segments[1].toLowerCase()); break;
+                case CALL: call(segments[1].toLowerCase(), segments[2].toLowerCase()); break;
+                case FUNCTION: mFunction(segments[1].toLowerCase(), segments[2].toLowerCase()); break;
+                case RETURN: mReturn(); break;
                 default:
                 case INVALID: break;
             }
@@ -90,6 +99,9 @@ public class Parser {
         if (cmd.equals("label"))    return Type.LABEL;
         if (cmd.equals("goto"))     return Type.GOTO_LABEL;
         if (cmd.equals("if-goto"))  return Type.IF_GOTO_LABEL;
+        if (cmd.equals("call"))     return Type.CALL;
+        if (cmd.equals("function")) return Type.FUNCTION;
+        if (cmd.equals("return"))   return Type.RETURN;
         return Type.INVALID;
     }
 
@@ -337,11 +349,11 @@ public class Parser {
     }
 
     private void ifGotoLabel(String labelName) {
-        pop("local", "0");
-        code.add("@LCL");
+        code.add("@SP");
+        code.add("AM=M-1");
         code.add("D=M");
         code.add("@"+labelName);
-        code.add("D+1;JEQ");        // True is -1, so (-1+1=0) == 0, if true then jump.
+        code.add("D;JNE");          // if D != 0 then jump.
     }
 
     private void call(String funcName, String nArgs) {
@@ -357,10 +369,14 @@ public class Parser {
     }
 
     private void repositionARG(String nVars) {
+        code.add("@"+nVars);
+        code.add("D=A");
+        code.add("@5");
+        code.add("D=D+A");
         code.add("@SP");
-        code.add("D=A");        // Current value of address.
+        code.add("D=A-D");      // Current value of address.
         code.add("@ARG");
-        code.add("D=D-A");      // D is number of addresses between ARG and SP.
+        code.add("M=D");        // D is number of addresses between ARG and SP.
     }
 
     private void repositionLCL() {
@@ -373,39 +389,119 @@ public class Parser {
     private void mFunction(String funcName, String nVars) {
         label(funcName);
         // Repeat nVars times:
-        pushConst("0");
-
+        code.add("@"+nVars);
+        code.add("D=A");
+        label("LOOP"+count);
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=0");
+        code.add("D=D-1");
+        code.add("@LOOP"+count);
+        code.add("D;JGE");
     }
 
-    // This method is probably broken. I will continue work on it.
     private void mReturn() {
-        pushConst("LCL");   // endFrame.
-        popTemp("0");       // temp 0 is LCL.
-        pushTemp("0");
-        pushConst("5");
-        sub();                 // Now at the bottom of the stack is address of the returnAddress.
-        popTemp("1");       // temp 1 is returnAddress.
-        pop("argument", "0");
-        code.add("@ARG");
-        code.add("D=A+1");
+        saveEndFrame();                     // R13 - endFrame address.
+        saveReturnAddress();                // R14 - return address.
+        restoreValue();                     // *ARG = pop()
+        repositionSP();                     // SP = ARG + 1
+        restoreThat();                      // THAT = *(endFrame - 1)
+        restoreThis();                      // THIS = *(endFrame - 2)
+        restoreArg();                       // ARG = *(endFrame - 3)
+        restoreLCL();                       // LCL = *(endFrame - 4)
+        gotoReturn();                       // goto return address.
+    }
+
+    private void saveEndFrame() {
+        code.add("@LCL");
+        code.add("A=M");
+        code.add("D=A");
+        code.add("@R13");
+        code.add("M=D");
+    }
+
+    private void saveReturnAddress() {
+        code.add("@5");
+        code.add("D=D-A");
+        code.add("A=D");
+        code.add("D=M");
+        code.add("@R14");
+        code.add("M=D");
+    }
+
+    private void restoreValue() {
         code.add("@SP");
-        code.add("M=D");                    // SP = ARG + 1
-        push("temp", "0");
-        pushConst("1");
-        sub();
-        pop("pointer", "1");    // THAT
-        push("temp", "0");
-        pushConst("2");
-        sub();
-        pop("pointer", "0");    // THIS.
-        push("temp", "0");
-        pushConst("3");
-        sub();
-        pop("argument", "0");   // ARG
-        push("temp", "0");
-        pushConst("4");
-        sub();
-        pop("local", "0");
-        // goto return Address.
+        code.add("AM=M-1");
+        code.add("D=M");
+        code.add("@ARG");
+        code.add("A=M");
+        code.add("M=D");
+    }
+
+    private void repositionSP() {
+        code.add("@ARG");
+        code.add("D=M+1");
+        code.add("@SP");
+        code.add("M=D");
+    }
+
+    private void restoreThat() {
+        code.add("@R13");
+        code.add("D=M-1");
+        code.add("A=D");
+        code.add("D=M");
+        code.add("@THAT");
+        code.add("M=D");
+    }
+
+    private void restoreThis() {
+        code.add("@R13");
+        code.add("D=M-1");
+        code.add("D=D-1");
+        code.add("A=D");
+        code.add("D=M");
+        code.add("@THIS");
+        code.add("M=D");
+    }
+
+    private void restoreArg() {
+        code.add("@R13");
+        code.add("D=M");
+        code.add("@3");
+        code.add("D=D-A");
+        code.add("A=D");
+        code.add("D=M");
+        code.add("@ARG");
+        code.add("M=D");
+    }
+
+    private void restoreLCL() {
+        code.add("@R13");
+        code.add("D=M");
+        code.add("@4");
+        code.add("D=D-A");
+        code.add("A=D");
+        code.add("D=M");
+        code.add("@LCL");
+        code.add("M=D");
+    }
+
+    private void gotoReturn() {
+        code.add("@R14");
+        code.add("A=M");
+        code.add("0;JMP");
+    }
+
+    /**
+     * Writes boot assembly code.
+     */
+    public void writeInit() {
+        code.add("@256");
+        code.add("D=A");
+        code.add("@SP");
+        code.add("M=D");
+        code.add("@sys.init");
+        code.add("0;JMP");
     }
 }
