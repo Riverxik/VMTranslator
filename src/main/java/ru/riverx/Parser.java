@@ -93,6 +93,13 @@ public class Parser {
         return Type.INVALID;
     }
 
+    /**
+     * Pushes value into global stack from @segment one with @i shift.
+     * @segment can be constant, static, temp, pointer, local, argument, this, that.
+     *
+     * @param segment from which of the 'stacks' value will be pushed into global stack.
+     * @param i local pointer for 'stacks'
+     * */
     private void push(String segment, String i) {
         if (segment.equals("constant")) { pushConst(i); return; }
         if (segment.equals("static"))   { pushStatic(i); return; }
@@ -112,6 +119,11 @@ public class Parser {
         code.add("M=D");
     }
 
+    /**
+     * Pushes given constant to the global stack.
+     *
+     * @param i constant to be pushed in global stack.
+     * */
     private void pushConst(String i) {
         code.add("@"+i);
         code.add("D=A");
@@ -121,6 +133,11 @@ public class Parser {
         code.add("M=D");
     }
 
+    /**
+     * Pushes value from the static pointer into global stack.
+     *
+     * @param i shift for the static field.
+     */
     private void pushStatic(String i) {
         code.add("@"+filename+"."+i);
         code.add("D=M");
@@ -130,6 +147,11 @@ public class Parser {
         code.add("M=D");
     }
 
+    /**
+     * Pushes temporary value into global stack.
+     *
+     * @param i shift for 'temp stack'.
+     */
     private void pushTemp(String i) {
         code.add("@"+(5+Integer.parseInt(i)));
         code.add("D=M");
@@ -139,6 +161,11 @@ public class Parser {
         code.add("M=D");
     }
 
+    /**
+     * Pushes address from @this or @that pointers into the global stack.
+     *
+     * @param i can be 0 for this or 1 for that pointer.
+     */
     private void pushPointer(String i) {
         if (i.equals("0")) code.add("@THIS");
         if (i.equals("1")) code.add("@THAT");
@@ -149,6 +176,27 @@ public class Parser {
         code.add("M=D");
     }
 
+    /**
+     * Pushes given @address to the stack.
+     *
+     * @param address address which will be pushed to the global stack.
+     * */
+    private void pushAddress(String address) {
+        code.add("@"+address);
+        code.add("D=A");
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=D");
+    }
+
+    /**
+     * Pops the value from the global stack to the @segment 'stack' with @i shift.
+     * @segment can be: static, temp, pointer, local, argument, this, that.
+     *
+     * @param segment name of the segment-stack for putting the value to.
+     * @param i shift for the segment-stack.
+     */
     private void pop(String segment, String i) {
         if (segment.equals("static"))   { popStatic(i); return; }
         if (segment.equals("temp"))     { popTemp(i); return; }
@@ -294,5 +342,70 @@ public class Parser {
         code.add("D=M");
         code.add("@"+labelName);
         code.add("D+1;JEQ");        // True is -1, so (-1+1=0) == 0, if true then jump.
+    }
+
+    private void call(String funcName, String nArgs) {
+        pushAddress("return"+count);    // Using the label declared below.
+        pushAddress("LCL");             // Saves LCL of the caller.
+        pushAddress("ARG");             // Saves ARG of the caller.
+        pushAddress("THIS");            // Saves THIS of the caller.
+        pushAddress("THAT");            // Saves THAT of the caller.
+        repositionARG(nArgs);           // ARG = SP - 5 - nArgs.
+        repositionLCL();                // LCL = SP.
+        gotoLabel(funcName);            // Transfers control to the called function.
+        label("return"+count); // Declares a label for the return-address.
+    }
+
+    private void repositionARG(String nVars) {
+        code.add("@SP");
+        code.add("D=A");        // Current value of address.
+        code.add("@ARG");
+        code.add("D=D-A");      // D is number of addresses between ARG and SP.
+    }
+
+    private void repositionLCL() {
+        code.add("@SP");
+        code.add("D=A");
+        code.add("@LCL");
+        code.add("M=D");
+    }
+
+    private void mFunction(String funcName, String nVars) {
+        label(funcName);
+        // Repeat nVars times:
+        pushConst("0");
+
+    }
+
+    // This method is probably broken. I will continue work on it.
+    private void mReturn() {
+        pushConst("LCL");   // endFrame.
+        popTemp("0");       // temp 0 is LCL.
+        pushTemp("0");
+        pushConst("5");
+        sub();                 // Now at the bottom of the stack is address of the returnAddress.
+        popTemp("1");       // temp 1 is returnAddress.
+        pop("argument", "0");
+        code.add("@ARG");
+        code.add("D=A+1");
+        code.add("@SP");
+        code.add("M=D");                    // SP = ARG + 1
+        push("temp", "0");
+        pushConst("1");
+        sub();
+        pop("pointer", "1");    // THAT
+        push("temp", "0");
+        pushConst("2");
+        sub();
+        pop("pointer", "0");    // THIS.
+        push("temp", "0");
+        pushConst("3");
+        sub();
+        pop("argument", "0");   // ARG
+        push("temp", "0");
+        pushConst("4");
+        sub();
+        pop("local", "0");
+        // goto return Address.
     }
 }
