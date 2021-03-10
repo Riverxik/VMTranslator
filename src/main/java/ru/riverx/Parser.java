@@ -269,4 +269,21 @@ public class Parser {
         code.add("A=M-1");
         code.add("M=!M");
     }
+
+    private void label(String labelName) {
+        code.add("(" + labelName + ")");
+    }
+
+    private void gotoLabel(String labelName) {
+        code.add("@"+labelName);
+        code.add("0;JMP");
+    }
+
+    private void ifGotoLabel(String labelName) {
+        pop("local", "0");
+        code.add("@LCL");
+        code.add("D=M");
+        code.add("@"+labelName);
+        code.add("D+1;JEQ");        // True is -1, so (-1+1=0) == 0, if true then jump.
+    }
 }
