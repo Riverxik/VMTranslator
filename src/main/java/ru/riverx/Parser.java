@@ -7,11 +7,11 @@ import java.util.List;
  * Created by RiVeRx on 09.03.2021.
  */
 public class Parser {
-    private List<String> lines;
+    private final List<String> lines;
+    private final String filename;
+    private final int size;
     public List<String> code;
-    private String filename;
     private int count;
-    private int size;
 
     enum Type {
         PUSH,
