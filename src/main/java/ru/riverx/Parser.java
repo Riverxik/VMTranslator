@@ -514,7 +514,6 @@ public class Parser {
         code.add("D=A");
         code.add("@SP");
         code.add("M=D");
-        code.add("@sys.init");
-        code.add("0;JMP");
+        call("sys.init", "0");
     }
 }
