@@ -202,6 +202,15 @@ public class Parser {
         code.add("M=D");
     }
 
+    private void pushAddressM(String address) {
+        code.add("@"+address);
+        code.add("D=M");
+        code.add("@SP");
+        code.add("AM=M+1");
+        code.add("A=A-1");
+        code.add("M=D");
+    }
+
     /**
      * Pops the value from the global stack to the @segment 'stack' with @i shift.
      * @segment can be: static, temp, pointer, local, argument, this, that.
@@ -290,13 +299,13 @@ public class Parser {
         code.add("@SP");
         code.add("A=M-1");
         code.add("M=0");        // false.
-        code.add("@IFEND"+count);
+        code.add("@IF_END"+count);
         code.add("0;JMP");
         code.add("(IF"+count+")");
         code.add("@SP");
         code.add("A=M-1");
         code.add("M=-1");       // true.
-        code.add("(IFEND"+count+")");
+        code.add("(IF_END"+count+")");
     }
 
     private void eq() {
@@ -357,15 +366,15 @@ public class Parser {
     }
 
     private void call(String funcName, String nArgs) {
-        pushAddress("return"+count);    // Using the label declared below.
-        pushAddress("LCL");             // Saves LCL of the caller.
-        pushAddress("ARG");             // Saves ARG of the caller.
-        pushAddress("THIS");            // Saves THIS of the caller.
-        pushAddress("THAT");            // Saves THAT of the caller.
+        pushAddress("return_"+funcName+"_"+count);    // Using the label declared below.
+        pushAddressM("LCL");             // Saves LCL of the caller.
+        pushAddressM("ARG");             // Saves ARG of the caller.
+        pushAddressM("THIS");            // Saves THIS of the caller.
+        pushAddressM("THAT");            // Saves THAT of the caller.
         repositionARG(nArgs);           // ARG = SP - 5 - nArgs.
         repositionLCL();                // LCL = SP.
         gotoLabel(funcName);            // Transfers control to the called function.
-        label("return"+count); // Declares a label for the return-address.
+        label("return_"+funcName+"_"+count); // Declares a label for the return-address.
     }
 
     private void repositionARG(String nVars) {
@@ -374,6 +383,7 @@ public class Parser {
         code.add("@5");
         code.add("D=D+A");
         code.add("@SP");
+        code.add("A=M");
         code.add("D=A-D");      // Current value of address.
         code.add("@ARG");
         code.add("M=D");        // D is number of addresses between ARG and SP.
@@ -381,7 +391,7 @@ public class Parser {
 
     private void repositionLCL() {
         code.add("@SP");
-        code.add("D=A");
+        code.add("D=M");
         code.add("@LCL");
         code.add("M=D");
     }
@@ -391,14 +401,17 @@ public class Parser {
         // Repeat nVars times:
         code.add("@"+nVars);
         code.add("D=A");
-        label("LOOP"+count);
+        code.add("@LOOP_END_"+funcName+"_"+count);        // if nVars = 0 then goto LOOP_END
+        code.add("D;JEQ");
+        code.add("(LOOP_"+funcName+"_"+count+")");
         code.add("@SP");
         code.add("AM=M+1");
         code.add("A=A-1");
         code.add("M=0");
         code.add("D=D-1");
-        code.add("@LOOP"+count);
+        code.add("@LOOP_"+funcName+"_"+count);
         code.add("D;JGE");
+        code.add("(LOOP_END_"+funcName+"_"+count+")");
     }
 
     private void mReturn() {
