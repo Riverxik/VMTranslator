@@ -44,7 +44,9 @@ public class CodeWriter {
         if (filenames != null) {
             for (String file : filenames) {
                 lines = readFile(file);
-                Parser parser = new Parser(lines, filename, init);
+                file = file.replaceAll("/","_");
+                String name = file.substring(0, file.indexOf("."));
+                Parser parser = new Parser(lines, name, init);
                 init = false;
                 code.addAll(parser.code);
             }
